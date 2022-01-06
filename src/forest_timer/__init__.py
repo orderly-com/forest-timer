@@ -167,5 +167,6 @@ class ForestTimer:
         node.text = name
         node.update()
         self.node_at_line[line_number] = node
-        self.visualize(flush=True)
-        self.reset()
+        if not self.root:
+            self.visualize(flush=True)
+            self.reset()
