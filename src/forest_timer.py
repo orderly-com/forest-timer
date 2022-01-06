@@ -1,7 +1,6 @@
 from typing import Any, Iterable, Optional
 import time
-import uuid
-from termcolor import colored, cprint
+from termcolor import colored
 
 import inspect
 
@@ -21,9 +20,9 @@ class FTNode:
         self.timer.last_step = time.time()
 
     def get_time_display(self, seconds):
-        if seconds < 1:
+        if seconds < self.timer.warn_threshold:
             color = 'green'
-        elif seconds < 10:
+        elif seconds < self.timer.danger_threshold:
             color = 'yellow'
         else:
             color = 'red'
@@ -47,7 +46,6 @@ class FTFor(FTNode):
         self.loop_index += 1
 
     def setup(self, iter):
-
         self.ft_iter = FTIterator(self, iter)
         self.loop_size = len(iter)
         self.loop_index = 0
@@ -62,6 +60,7 @@ class FTFor(FTNode):
             rate = self.loop_index / self.loop_size*100
         else:
             rate = 0
+
         if self.loop_size == self.loop_index:
             progress = f'{colored("Completed", "green")} ({self.loop_size})'
         else:
@@ -86,16 +85,24 @@ class FTIterator:
 
         except StopIteration:
             if self.node.parent:
-                self.node.timer.reset()
+                pass
             else:
                 self.node.timer.visualize(flush=True)
+                self.node.timer.reset()
             self.node.timer.indent -= 1
             raise StopIteration
 
 
 class ForestTimer:
-    def __init__(self):
+    def __init__(
+        self, print_interval=0.1, max_print_len=100,
+        warn_threshold=1, danger_threshold=10
+    ):
+        self.warn_threshold = warn_threshold
+        self.danger_threshold = danger_threshold
+        self.print_interval = print_interval
         self.last_line = '\033[F'
+        self.max_print_len = max_print_len
         self.reset()
 
     def reset(self):
@@ -111,9 +118,9 @@ class ForestTimer:
         self.node_at_line[line] = node
 
     def visualize(self, flush=False):
-        if time.time()-self.last_print > 0.1 or flush:
+        if time.time() - self.last_print > self.print_interval or flush:
             for line, node in self.node_at_line.items():
-                print('      ' * (node.indent), node.display(), end='       \r')
+                print('      ' * (node.indent), node.display()[:self.max_print_len], end='       \r')
                 print(f'{colored(line, "grey")}')
             self.last_print = time.time()
 
@@ -121,6 +128,22 @@ class ForestTimer:
                 print('\033[F' * len(self.node_at_line), end='')
 
     def __call__(self, iter:Iterable, name='') -> Any:
+        previous_frame = inspect.currentframe().f_back
+        (filename, line_number, function_name, lines, index) = inspect.getframeinfo(previous_frame)
+
+        node = self.node_at_line.get(line_number, FTFor(self, name, line_number, parent=self.current_for, root=self.root, indent=self.indent))
+
+        self.node_at_line[line_number] = node
+        self.indent = node.indent
+        self.indent += 1
+        node.setup(iter)
+        if not self.root:
+            self.root = node
+
+        self.current_for = node
+        return node.ft_iter
+
+    def iter(self, iter:Iterable, name='') -> Any:
         previous_frame = inspect.currentframe().f_back
         (filename, line_number, function_name, lines, index) = inspect.getframeinfo(previous_frame)
 
@@ -144,5 +167,5 @@ class ForestTimer:
         node.text = name
         node.update()
         self.node_at_line[line_number] = node
-        self.visualize()
+        self.visualize(flush=True)
         self.reset()
