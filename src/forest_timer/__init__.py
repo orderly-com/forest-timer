@@ -45,9 +45,16 @@ class FTFor(FTNode):
         self.timer.last_step = time.time()
         self.loop_index += 1
 
-    def setup(self, iter):
+    def setup(self, iter, count=None):
         self.ft_iter = FTIterator(self, iter)
-        self.loop_size = len(iter)
+        try:
+            self.loop_size = len(iter)
+        except:
+            if count:
+                self.loop_size = count
+            else:
+                self.loop_size = -1
+
         self.loop_index = 0
         self.last_step = time.time()
         if not self.text:
@@ -127,7 +134,7 @@ class ForestTimer:
             if not flush:
                 print('\033[F' * len(self.node_at_line), end='')
 
-    def __call__(self, iter:Iterable, name='') -> Any:
+    def __call__(self, iter:Iterable, name='', count=None) -> Any:
         previous_frame = inspect.currentframe().f_back
         (filename, line_number, function_name, lines, index) = inspect.getframeinfo(previous_frame)
 
@@ -136,14 +143,14 @@ class ForestTimer:
         self.node_at_line[line_number] = node
         self.indent = node.indent
         self.indent += 1
-        node.setup(iter)
+        node.setup(iter, count=count)
         if not self.root:
             self.root = node
 
         self.current_for = node
         return node.ft_iter
 
-    def iter(self, iter:Iterable, name='') -> Any:
+    def iter(self, iter:Iterable, name='', count=None) -> Any:
         previous_frame = inspect.currentframe().f_back
         (filename, line_number, function_name, lines, index) = inspect.getframeinfo(previous_frame)
 
@@ -152,7 +159,7 @@ class ForestTimer:
         self.node_at_line[line_number] = node
         self.indent = node.indent
         self.indent += 1
-        node.setup(iter)
+        node.setup(iter, count=count)
         if not self.root:
             self.root = node
 
